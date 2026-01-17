@@ -1627,11 +1627,13 @@ function renderMileageSummary(period = 'monthly') {
 
 
 function generatePrintView(year, month, period, isDetailed) {
+    // [중요] 재계산을 위해 현재 조회 옵션을 저장해둡니다.
+    window.lastPrintParams = { year, month, period, isDetailed };
+
     const sDay = period === 'second' ? 16 : 1;
     const eDay = period === 'first' ? 15 : 31;
     const periodStr = period === 'full' ? '1일 ~ 말일' : `${sDay}일 ~ ${eDay === 15 ? 15 : '말일'}일`;
 
-    // 급여 조회
     const salaryKey = `${year}-${month}`;
     const monthlySalary = MEM_SALARIES[salaryKey] || 0;
 
@@ -1662,7 +1664,6 @@ function generatePrintView(year, month, period, isDetailed) {
         }
     });
 
-    // 급여 리스트 추가
     if (monthlySalary > 0) {
         incomeList.push({ date: `${year}-${month}-01`, _statDate: `${year}-${month}-01`, time: '00:00', type: '급여', expenseItem: '고정 급여', income: monthlySalary });
         sumIncomeOther += monthlySalary;
@@ -1677,8 +1678,7 @@ function generatePrintView(year, month, period, isDetailed) {
     const finalProfit = totalIncome - totalExpense - netFuelCost;
     const formatMoney = (n) => n.toLocaleString();
 
-    // [수정] 스타일: input 태그가 인쇄 시에는 테두리 없이 깔끔하게 나오도록 설정
-    let reportContent = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>운송 기록 [${year}-${month}]</title><style>body { font-family: 'Malgun Gothic', sans-serif; padding: 20px; color: #333; background: #fff; }h2 { text-align: left; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; font-size: 1.5em; }.summary-box { background: #f9f9f9; padding: 15px; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 30px; font-size: 0.95em; line-height: 1.8; }.summary-row { margin-bottom: 5px; }.summary-label { display: inline-block; width: 25px; font-weight: bold; text-align: center; margin-right: 5px; }.plus { color: #007bff; } .minus { color: #dc3545; } .equal { color: #28a745; }.val-bold { font-weight: bold; }.section-title { font-size: 1.1em; font-weight: bold; margin: 20px 0 10px 0; border-left: 5px solid #333; padding-left: 10px; }table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 20px; }th { background: #eee; border: 1px solid #ccc; padding: 8px; font-weight: bold; text-align: center; }td { border-left: 1px solid #ccc; border-right: 1px solid #ccc; padding: 6px 8px; vertical-align: middle; }tr.new-day td { border-top: 2px solid #444 !important; } tr:not(.new-day) td { border-top: 1px solid #eee; }.txt-right { text-align: right; }.txt-center { text-align: center; }.txt-red { color: #dc3545; }.txt-blue { color: #007bff; }.no-record { text-align: center; padding: 20px; color: #999; border-bottom: 1px solid #ccc; }input.money-input { width: 60px; text-align: right; border: none; border-bottom: 1px solid #ccc; font-family: inherit; font-size: inherit; background: transparent; }@media print { input { border: none !important; border-bottom: none !important; } }</style></head><body><h2>${year}년 ${month}월 ${periodStr} 운송 기록</h2><div class="summary-box"><div class="summary-row"><strong>[요약]</strong> 근무일: ${workDays.size}일 | 운행건수: ${totalCount}건 | 운행거리: ${totalDist.toFixed(1)}km</div><!-- [삭제됨] 청구 운임 필드 --><div class="summary-row" style="margin-top:10px; border-top:1px dashed #ccc; padding-top:10px;"><span class="summary-label plus">[ + ]</span> 총 수입: <span class="val-bold plus">${formatMoney(totalIncome)} 원</span> <span style="color:#666; font-size:0.9em;">(운송: ${formatMoney(sumIncomeTrans)} + 기타/급여: ${formatMoney(sumIncomeOther)})</span></div><div class="summary-row"><span class="summary-label minus">[ - ]</span> 총 지출: <span class="val-bold minus">${formatMoney(totalExpense)} 원</span> <span style="color:#666; font-size:0.9em;">(운송지출: ${formatMoney(sumExpTrans)} + 일반지출: ${formatMoney(sumExpGen)})</span></div><div class="summary-row"><span class="summary-label minus">[ - ]</span> 실 주유비: <span class="val-bold minus">${formatMoney(netFuelCost)} 원</span> <span style="color:#666; font-size:0.9em;">(주유금액: ${formatMoney(sumFuelCost)} - 보조금: ${formatMoney(sumFuelSub)})</span></div><div class="summary-row" style="margin-top:10px; border-top:1px solid #ccc; padding-top:10px; font-size:1.1em;"><span class="summary-label equal">[ = ]</span> 최종 순수익: <span class="val-bold equal" style="font-size:1.2em;">${formatMoney(finalProfit)} 원</span></div></div>`;
+    let reportContent = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>운송 기록 [${year}-${month}]</title><style>body { font-family: 'Malgun Gothic', sans-serif; padding: 20px; color: #333; background: #fff; }h2 { text-align: left; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; font-size: 1.5em; }.summary-box { background: #f9f9f9; padding: 15px; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 30px; font-size: 0.95em; line-height: 1.8; }.summary-row { margin-bottom: 5px; }.summary-label { display: inline-block; width: 25px; font-weight: bold; text-align: center; margin-right: 5px; }.plus { color: #007bff; } .minus { color: #dc3545; } .equal { color: #28a745; }.val-bold { font-weight: bold; }.section-title { font-size: 1.1em; font-weight: bold; margin: 20px 0 10px 0; border-left: 5px solid #333; padding-left: 10px; }table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 20px; }th { background: #eee; border: 1px solid #ccc; padding: 8px; font-weight: bold; text-align: center; }td { border-left: 1px solid #ccc; border-right: 1px solid #ccc; padding: 6px 8px; vertical-align: middle; }tr.new-day td { border-top: 2px solid #444 !important; } tr:not(.new-day) td { border-top: 1px solid #eee; }.txt-right { text-align: right; }.txt-center { text-align: center; }.txt-red { color: #dc3545; }.txt-blue { color: #007bff; }.no-record { text-align: center; padding: 20px; color: #999; border-bottom: 1px solid #ccc; }input.money-input { width: 60px; text-align: right; border: none; border-bottom: 1px solid #ccc; font-family: inherit; font-size: inherit; background: transparent; }@media print { input { border: none !important; border-bottom: none !important; } }</style></head><body><h2>${year}년 ${month}월 ${periodStr} 운송 기록</h2><div class="summary-box"><div class="summary-row"><strong>[요약]</strong> 근무일: ${workDays.size}일 | 운행건수: ${totalCount}건 | 운행거리: ${totalDist.toFixed(1)}km</div><div class="summary-row" style="margin-top:10px; border-top:1px dashed #ccc; padding-top:10px;"><span class="summary-label plus">[ + ]</span> 총 수입: <span class="val-bold plus">${formatMoney(totalIncome)} 원</span> <span style="color:#666; font-size:0.9em;">(운송: ${formatMoney(sumIncomeTrans)} + 기타/급여: ${formatMoney(sumIncomeOther)})</span></div><div class="summary-row"><span class="summary-label minus">[ - ]</span> 총 지출: <span class="val-bold minus">${formatMoney(totalExpense)} 원</span> <span style="color:#666; font-size:0.9em;">(운송지출: ${formatMoney(sumExpTrans)} + 일반지출: ${formatMoney(sumExpGen)})</span></div><div class="summary-row"><span class="summary-label minus">[ - ]</span> 실 주유비: <span class="val-bold minus">${formatMoney(netFuelCost)} 원</span> <span style="color:#666; font-size:0.9em;">(주유금액: ${formatMoney(sumFuelCost)} - 보조금: ${formatMoney(sumFuelSub)})</span></div><div class="summary-row" style="margin-top:10px; border-top:1px solid #ccc; padding-top:10px; font-size:1.1em;"><span class="summary-label equal">[ = ]</span> 최종 순수익: <span class="val-bold equal" style="font-size:1.2em;">${formatMoney(finalProfit)} 원</span></div></div>`;
 
     const buildTable = (title, headers, rows) => {
         let tHtml = `<div class="section-title">${title}</div><table><thead><tr>${headers.map(h=>`<th style="${h.style||''}">${h.text}</th>`).join('')}</tr></thead><tbody>`;
@@ -1694,7 +1694,7 @@ function generatePrintView(year, month, period, isDetailed) {
         return tHtml;
     };
     
-    // [수정] 1. 운송 내역 테이블: 수입란을 input 필드(단위: 만원)로 변경
+    // [수정됨] 입력 시 데이터 저장 함수(window.updateIncomeFromPrint) 호출
     reportContent += buildTable('1. 운송 내역', 
         [ {text:'날짜', style:'width:10%'}, {text:'상차지', style:'width:20%'}, {text:'하차지', style:'width:20%'}, {text:'내용', style:'width:20%'}, {text:'거리', style:'width:10%'}, {text:'수입(만)', style:'width:10%'}, {text:'비고', style:'width:10%'} ],
         transportList.map(r => ({
@@ -1703,8 +1703,8 @@ function generatePrintView(year, month, period, isDetailed) {
                 {val: r.date.substring(5), cls:'txt-center'}, {val: r.from || '-'}, {val: r.to || '-'},
                 {val: (r.type==='대기'?'대기':(r.type==='공차이동'?'공차이동':'화물운송')) + (isDetailed && r.expenseItem ? ` (${r.expenseItem})` : ''), cls:'txt-center'},
                 {val: r.distance ? r.distance+' km' : '-', cls:'txt-center'}, 
-                // [변경됨] 수입을 만원 단위 input으로 표시 (예: 50000 -> 5)
-                {val: `<input type="number" class="money-input" value="${r.income ? r.income / 10000 : 0}" step="0.1">`, cls:'txt-right'}, 
+                // [변경] onchange 이벤트 연결
+                {val: `<input type="number" class="money-input" value="${r.income ? r.income / 10000 : 0}" step="0.1" onchange="window.updateIncomeFromPrint(this, ${r.id})">`, cls:'txt-right'}, 
                 {val: '', cls:'txt-center'} 
             ]
         }))
@@ -1867,6 +1867,39 @@ document.addEventListener("DOMContentLoaded", () => {
         if(y) y.innerHTML = yearOptions.join('');
         if(m) { m.innerHTML = monthOptions.join(''); m.value = String(new Date().getMonth()+1).padStart(2,'0'); }
     });
+
+
+// [신규] 인쇄 화면 수정 시 데이터 저장 및 화면 갱신 함수
+window.updateIncomeFromPrint = function(inputEl, id) {
+    const newVal = parseFloat(inputEl.value); // 입력된 만원 단위 값
+    if (isNaN(newVal)) return;
+
+    const record = MEM_RECORDS.find(r => r.id === id);
+    if (record) {
+        // 1. 실제 데이터 수정 (만원 -> 원 변환 저장)
+        record.income = Math.round(newVal * 10000);
+        
+        // 2. (옵션) 상호별 운임 정보(자동완성)도 함께 업데이트
+        if(record.type === '화물운송' && record.from && record.to) {
+            const key = `${record.from}-${record.to}`;
+            MEM_FARES[key] = record.income;
+        }
+
+        saveData(); // 로컬 스토리지 저장
+        
+        // 3. 화면 재갱신 (상단 총계 다시 계산)
+        // 방금 열었던 인쇄 설정값(window.lastPrintParams)을 이용해 화면을 다시 그립니다.
+        const p = window.lastPrintParams;
+        if(p) {
+            generatePrintView(p.year, p.month, p.period, p.isDetailed);
+            
+            // 재갱신 후 스크롤 위치 보정을 위해 약간의 딜레이 후 토스트
+            setTimeout(() => showToast("저장 및 재계산 완료"), 100);
+        }
+    }
+};
+
+
 
     document.getElementById('print-first-half-btn')?.addEventListener('click', () => {
         generatePrintView(document.getElementById('print-year-select').value, document.getElementById('print-month-select').value, 'first', false);
