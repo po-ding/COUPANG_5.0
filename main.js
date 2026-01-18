@@ -2332,4 +2332,86 @@ document.getElementById('btn-update-record')?.addEventListener('click', () => {
 
     updateAllDisplays();
     resetForm(); 
-});
+
+// [New] 상단 헤더 '모두 펼치기' 버튼 동적 생성 및 기능 연결
+const refreshBtn = document.getElementById('refresh-btn');
+if (refreshBtn && refreshBtn.parentNode) {
+    
+    // 이미 버튼이 있는지 확인 후 생성
+    if (!document.getElementById('toggle-all-sections-btn')) {
+        const toggleAllBtn = document.createElement('button');
+        toggleAllBtn.id = 'toggle-all-sections-btn';
+        
+        // 1. 텍스트 대신 아이콘(▼)을 사용하여 공간 확보 및 디자인 통일
+        toggleAllBtn.innerHTML = '▼'; 
+        
+        // 2. 기존 버튼(새로고침/설정)과 동일한 스타일(회색 박스) 적용
+        toggleAllBtn.style.display = 'inline-block'; // 옆으로 나란히 배치
+        toggleAllBtn.style.verticalAlign = 'middle'; // 수직 중앙 정렬
+        toggleAllBtn.style.marginRight = '4px';      // 옆 버튼과 간격
+        
+        toggleAllBtn.style.background = '#6c757d';   // 진한 회색 (기존 버튼 색상)
+        toggleAllBtn.style.color = '#ffffff';        // 흰색 글자
+        toggleAllBtn.style.border = 'none';
+        toggleAllBtn.style.borderRadius = '4px';
+        toggleAllBtn.style.padding = '8px 12px';     // 버튼 크기 조절
+        toggleAllBtn.style.cursor = 'pointer';
+        toggleAllBtn.style.fontWeight = 'bold';
+        toggleAllBtn.style.fontSize = '1em';
+        toggleAllBtn.style.lineHeight = '1';
+        
+        // 3. 새로고침 버튼 앞에 '끼워넣기' (레이아웃 파괴 방지)
+        refreshBtn.parentNode.insertBefore(toggleAllBtn, refreshBtn);
+
+        // [클릭 이벤트] 기록일시, 기록종류, 상하차, 금액정보 일괄 토글
+        toggleAllBtn.addEventListener('click', function() {
+            const targetIds = [
+                'basic-info-section',       // 기록 일시
+                'datetime-info-fieldset',   // 날짜/시간
+                'transport-details',        // 상하차 정보
+                'cost-info-fieldset'        // 금액 정보
+            ];
+
+            const typeLegend = document.getElementById('legend-type');
+            let typeFieldset = null;
+            if(typeLegend) typeFieldset = typeLegend.closest('fieldset');
+
+            const mainTarget = document.getElementById('transport-details');
+            const isCurrentlyExpanded = mainTarget && !mainTarget.classList.contains('hidden') && mainTarget.style.display !== 'none';
+
+            if (isCurrentlyExpanded) {
+                // [접기 모드]
+                targetIds.forEach(id => {
+                    const el = document.getElementById(id);
+                    if(el) { el.classList.add('hidden'); el.style.display = 'none'; }
+                });
+                if(typeFieldset) typeFieldset.style.display = 'none';
+                
+                // 개별 섹션 버튼 상태 동기화
+                ['toggle-basic-info-btn', 'toggle-location-section-btn', 'toggle-cost-section-btn'].forEach(tid => {
+                    const btn = document.getElementById(tid);
+                    if(btn) btn.innerHTML = '펴기 ▼';
+                });
+
+                this.innerHTML = '▼'; // 아이콘 변경
+                this.style.background = '#6c757d'; // 기본 색상
+            } else {
+                // [펼치기 모드]
+                targetIds.forEach(id => {
+                    const el = document.getElementById(id);
+                    if(el) { el.classList.remove('hidden'); el.style.display = 'block'; }
+                });
+                if(typeFieldset) typeFieldset.style.display = 'block';
+
+                ['toggle-basic-info-btn', 'toggle-location-section-btn', 'toggle-cost-section-btn'].forEach(tid => {
+                    const btn = document.getElementById(tid);
+                    if(btn) btn.innerHTML = '접기 ▲';
+                });
+
+                this.innerHTML = '▲'; // 아이콘 변경
+                this.style.background = '#5a6268'; // 클릭됨(더 진한 회색)
+            }
+        });
+    }
+}
+}); // ★중요★ 파일의 맨 끝에는 이 괄호 닫기 한 쌍만 있어야 합니다.
