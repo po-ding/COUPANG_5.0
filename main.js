@@ -1,7 +1,8 @@
-// ==========================================
-// [블록 1] 데이터 관리 및 전역 변수
-// ==========================================
+// =========================================================
+// 통합 main.js (오류 수정 및 기능 통합 완료)
+// =========================================================
 
+// [1] 전역 변수 선언
 let MEM_RECORDS = []; 
 let MEM_LOCATIONS = {}; 
 let MEM_FARES = {}; 
@@ -12,6 +13,7 @@ let MEM_EXPENSE_ITEMS = [];
 let MEM_SALARIES = {}; 
 let MEM_FIXED_EXPENSES = [];
 
+// [2] 데이터 로드 및 저장 함수
 function loadAllData() {
     try {
         const records = JSON.parse(localStorage.getItem('records')) || []; 
@@ -45,20 +47,6 @@ function saveData() {
     localStorage.setItem('saved_fixed_expenses', JSON.stringify(MEM_FIXED_EXPENSES));
 }
 
-function updateLocationData(name, address, memo) { 
-    if (!name) return; 
-    const trimmed = name.trim(); 
-    if (!MEM_CENTERS.includes(trimmed)) { MEM_CENTERS.push(trimmed); MEM_CENTERS.sort(); } 
-    if (address || memo) MEM_LOCATIONS[trimmed] = { ...(MEM_LOCATIONS[trimmed] || {}), address: address || '', memo: memo || '' }; 
-    saveData(); 
-}
-
-function updateExpenseItemData(item) { 
-    if (!item) return; 
-    const trimmed = item.trim(); 
-    if (!MEM_EXPENSE_ITEMS.includes(trimmed)) { MEM_EXPENSE_ITEMS.push(trimmed); MEM_EXPENSE_ITEMS.sort(); saveData(); } 
-}
-
 function syncHistoryToAutocompleteDB() { 
     let updated = false; 
     MEM_RECORDS.forEach(r => { 
@@ -87,10 +75,79 @@ function removeRecord(id) {
     const idx = MEM_RECORDS.findIndex(r => r.id === id); 
     if(idx > -1) { MEM_RECORDS.splice(idx, 1); saveData(); } 
 }
-// ==========================================
-// [블록 2] 설정 화면 및 관리자 기능
-// ==========================================
 
+function updateLocationData(name, address, memo) { 
+    if (!name) return; 
+    const trimmed = name.trim(); 
+    if (!MEM_CENTERS.includes(trimmed)) { MEM_CENTERS.push(trimmed); MEM_CENTERS.sort(); } 
+    if (address || memo) MEM_LOCATIONS[trimmed] = { ...(MEM_LOCATIONS[trimmed] || {}), address: address || '', memo: memo || '' }; 
+    saveData(); 
+}
+
+function updateExpenseItemData(item) { 
+    if (!item) return; 
+    const trimmed = item.trim(); 
+    if (!MEM_EXPENSE_ITEMS.includes(trimmed)) { MEM_EXPENSE_ITEMS.push(trimmed); MEM_EXPENSE_ITEMS.sort(); saveData(); } 
+}
+
+// [3] 유틸리티 함수
+const getTodayString = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+const getCurrentTimeString = () => { const d = new Date(); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; };
+const formatToManwon = (val) => isNaN(val) ? '0' : Math.round(val / 10000).toLocaleString('ko-KR');
+
+function showToast(msg) {
+    const toast = document.getElementById('toast-notification');
+    if(toast){
+        toast.textContent = msg;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 1500);
+    }
+}
+
+function copyTextToClipboard(text, msg) {
+    if (!text) { showToast('복사할 주소가 없습니다.'); return; }
+    const ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px';
+    document.body.appendChild(ta); ta.select();
+    try { 
+        document.execCommand('copy'); 
+        showToast(msg || '주소가 복사되었습니다.'); 
+    } catch (e) { 
+        if (navigator.clipboard) { navigator.clipboard.writeText(text).then(() => showToast(msg || '주소가 복사되었습니다.')).catch(err => console.log('복사 실패:', err)); } 
+    }
+    document.body.removeChild(ta);
+}
+
+function getStatisticalDate(dateStr, timeStr) {
+    if (!dateStr || !timeStr) return dateStr;
+    const hour = parseInt(timeStr.split(':')[0], 10);
+    if (hour >= 4) return dateStr;
+    const d = new Date(dateStr);
+    d.setDate(d.getDate() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function safeInt(value) { if (!value) return 0; const num = parseInt(String(value).replace(/,/g, ''), 10); return isNaN(num) ? 0 : num; }
+function safeFloat(value) { if (!value) return 0; const num = parseFloat(String(value).replace(/,/g, '')); return isNaN(num) ? 0 : num; }
+
+function moveDate(offset, updateCallback) {
+    const picker = document.getElementById('today-date-picker');
+    if (!picker || !picker.value) return;
+    const d = new Date(picker.value);
+    d.setDate(d.getDate() + offset);
+    picker.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    if(updateCallback) updateCallback();
+}
+
+function changeDateSelect(yId, mId, delta, updateCallback) {
+    const yEl = document.getElementById(yId); const mEl = document.getElementById(mId);
+    if(!yEl || !mEl) return;
+    const d = new Date(parseInt(yEl.value), parseInt(mEl.value) - 1 + delta, 1);
+    yEl.value = d.getFullYear(); mEl.value = String(d.getMonth() + 1).padStart(2, '0');
+    if(updateCallback) updateCallback();
+}
+
+// [4] 화면 UI 제어
 function controlSectionByText(keyword, show) {
     const knownIds = { '기록 일시': ['basic-info-section', 'datetime-info-fieldset', 'date-fieldset'], '기록 종류': ['type-fieldset'], '금액 정보': ['cost-info-fieldset'] };
     if(knownIds[keyword]) { knownIds[keyword].forEach(id => { const el = document.getElementById(id); if(el) { el.style.display = show ? 'block' : 'none'; if(!show) el.classList.add('hidden'); else el.classList.remove('hidden'); } }); }
@@ -111,100 +168,91 @@ window.toggleSection = function(sectionId, btnElement) {
     }
 };
 
+function toggleUI() {
+    const typeSelect = document.getElementById('type'); const editModeIndicator = document.getElementById('edit-mode-indicator'); const smsSection = document.getElementById('sms-parser-section'); if(!typeSelect) return;
+    const type = typeSelect.value; const isEditMode = editModeIndicator && !editModeIndicator.classList.contains('hidden');
+    const sections = ['fuel-details', 'supply-details', 'expense-details', 'trip-actions', 'general-actions', 'edit-actions']; sections.forEach(id => { const el = document.getElementById(id); if(el) el.classList.add('hidden'); });
+    const transportDetails = document.getElementById('transport-details'); const costInfo = document.getElementById('cost-info-fieldset'); const costWrapper = document.getElementById('cost-wrapper'); const incomeWrapper = document.getElementById('income-wrapper');
+    if (type === '운행종료') { if(transportDetails) transportDetails.classList.add('hidden'); if(costInfo) costInfo.classList.add('hidden'); controlSectionByText('기록 일시', false); controlSectionByText('기록 종류', false); return; }
+    if (isEditMode) { if(smsSection) smsSection.classList.add('hidden'); if(document.getElementById('edit-actions')) document.getElementById('edit-actions').classList.remove('hidden'); } else { if (['화물운송', '대기'].includes(type)) document.getElementById('trip-actions')?.classList.remove('hidden'); else document.getElementById('general-actions')?.classList.remove('hidden'); }
+    if (type === '화물운송' || type === '대기') { costWrapper?.classList.add('hidden'); incomeWrapper?.classList.remove('hidden'); } else { if(transportDetails) transportDetails.classList.add('hidden'); incomeWrapper?.classList.add('hidden'); costWrapper?.classList.remove('hidden'); if (type === '주유소') document.getElementById('fuel-details')?.classList.remove('hidden'); else if (type === '지출') { const expSection = document.getElementById('expense-details'); if(expSection) { expSection.classList.remove('hidden'); if(!document.getElementById('expense-memo')) { const div = document.createElement('div'); div.style.marginTop = '10px'; div.innerHTML = `<label style="display:block; color:#666; font-size:0.9em; margin-bottom:4px;">메모 (선택)</label><input type="text" id="expense-memo" placeholder="비고/상세내용" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px;">`; expSection.appendChild(div); } } } else if (type === '소모품') document.getElementById('supply-details')?.classList.remove('hidden'); }
+}
+
+function getFormDataWithoutTime() {
+    const typeVal = document.getElementById('type').value; let memoVal = ''; if(typeVal === '지출') { const memoInput = document.getElementById('expense-memo'); if(memoInput) memoVal = memoInput.value.trim(); }
+    return { type: typeVal, from: document.getElementById('from-center').value.trim(), to: document.getElementById('to-center').value.trim(), distance: parseFloat(document.getElementById('manual-distance').value) || 0, cost: Math.round((parseFloat(document.getElementById('cost').value) || 0) * 10000), income: Math.round((parseFloat(document.getElementById('income').value) || 0) * 10000), expenseItem: document.getElementById('expense-item')?.value || '', supplyItem: document.getElementById('supply-item')?.value || '', supplyMileage: document.getElementById('supply-mileage')?.value || '', liters: document.getElementById('fuel-liters')?.value || 0, unitPrice: document.getElementById('fuel-unit-price')?.value || 0, brand: document.getElementById('fuel-brand')?.value || '', memo: memoVal };
+}
+
+function resetForm() {
+    document.getElementById('record-form')?.reset(); document.getElementById('edit-id').value = ''; document.getElementById('edit-mode-indicator')?.classList.add('hidden'); document.getElementById('date').value = getTodayString(); document.getElementById('time').value = getCurrentTimeString(); document.getElementById('date').disabled = false; document.getElementById('time').disabled = false;
+    const displayEl = document.getElementById('address-display'); if(displayEl) { displayEl.innerHTML = ''; displayEl.style.display = 'none'; } const dtField = document.getElementById('datetime-info-fieldset'); if(dtField) dtField.style.display = 'none'; const typeLegend = document.getElementById('legend-type'); if(typeLegend) { const f = typeLegend.closest('fieldset'); if(f) f.style.display = 'none'; }
+    ['transport-details', 'cost-info-fieldset'].forEach(id => { const el = document.getElementById(id); if(el) { el.classList.add('hidden'); el.style.display = 'none'; } }); ['toggle-basic-info-btn', 'toggle-location-section-btn', 'toggle-cost-section-btn'].forEach(id => { const btn = document.getElementById(id); if(btn) btn.innerHTML = '펴기 ▼'; }); toggleUI();
+}
+
+function editRecord(id) {
+    const r = MEM_RECORDS.find(x => x.id === id); if(!r) return;
+    document.getElementById('date').value = r.date; document.getElementById('time').value = r.time; document.getElementById('type').value = r.type;
+    if(document.getElementById('from-center')) document.getElementById('from-center').value = r.from || ''; if(document.getElementById('to-center')) document.getElementById('to-center').value = r.to || ''; if(document.getElementById('manual-distance')) document.getElementById('manual-distance').value = r.distance || ''; if(document.getElementById('income')) document.getElementById('income').value = r.income ? (r.income/10000) : ''; if(document.getElementById('cost')) document.getElementById('cost').value = r.cost ? (r.cost/10000) : ''; if(document.getElementById('expense-item')) document.getElementById('expense-item').value = r.expenseItem || '';
+    toggleUI(); if(r.type === '지출') { const memoInput = document.getElementById('expense-memo'); if(memoInput) memoInput.value = r.memo || ''; }
+    document.getElementById('edit-id').value = id; document.getElementById('edit-mode-indicator')?.classList.remove('hidden'); document.getElementById('date').disabled = false; document.getElementById('time').disabled = false;
+    const dtField = document.getElementById('datetime-info-fieldset'); if(dtField) { dtField.style.display = 'block'; dtField.classList.remove('hidden'); } const dtBody = document.getElementById('body-datetime'); if(dtBody) dtBody.style.display = 'block'; const typeLegend = document.getElementById('legend-type'); if(typeLegend) { const f = typeLegend.closest('fieldset'); if(f) { f.style.display = 'block'; f.classList.remove('hidden'); } } const typeBody = document.getElementById('body-type'); if(typeBody) typeBody.style.display = 'block';
+    ['transport-details', 'cost-info-fieldset'].forEach(sid => { const s = document.getElementById(sid); if(s) { s.classList.remove('hidden'); s.style.display = 'block'; } });
+    const fromIn = document.getElementById('from-center'); const toIn = document.getElementById('to-center'); if(fromIn) fromIn.dispatchEvent(new Event('input')); if(toIn) toIn.dispatchEvent(new Event('input')); window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 window.openSettings = function() {
-    const mainPage = document.getElementById('main-page'); const settingsPage = document.getElementById('settings-page');
-    const btnGo = document.getElementById('go-to-settings-btn'); const btnBack = document.getElementById('back-to-main-btn'); const editIndicator = document.getElementById('edit-mode-indicator');
-    if (mainPage) mainPage.classList.add("hidden"); if (settingsPage) settingsPage.classList.remove("hidden");
-    if (btnGo) btnGo.classList.add("hidden"); if (btnBack) btnBack.classList.remove("hidden"); if (editIndicator) editIndicator.classList.add('hidden');
+    const mainPage = document.getElementById('main-page'); const settingsPage = document.getElementById('settings-page'); const btnGo = document.getElementById('go-to-settings-btn'); const btnBack = document.getElementById('back-to-main-btn'); const editIndicator = document.getElementById('edit-mode-indicator');
+    if (mainPage) mainPage.classList.add("hidden"); if (settingsPage) settingsPage.classList.remove("hidden"); if (btnGo) btnGo.classList.add("hidden"); if (btnBack) btnBack.classList.remove("hidden"); if (editIndicator) editIndicator.classList.add('hidden');
     try {
-        if (typeof displayCumulativeData === 'function') displayCumulativeData(); 
-        if (typeof displayCurrentMonthData === 'function') displayCurrentMonthData(); 
-        if (typeof displaySubsidyRecords === 'function') displaySubsidyRecords(false); 
+        if (typeof displayCumulativeData === 'function') displayCumulativeData(); if (typeof displayCurrentMonthData === 'function') displayCurrentMonthData(); if (typeof displaySubsidyRecords === 'function') displaySubsidyRecords(false); 
         const searchInput = document.getElementById('center-search-input'); if (typeof displayCenterList === 'function') displayCenterList(searchInput ? searchInput.value : '');
-        if (typeof displaySavedSmsNumber === 'function') displaySavedSmsNumber();
-        if (typeof displaySalaryManager === 'function') displaySalaryManager(); 
-        if (typeof displayFixedExpenseManager === 'function') displayFixedExpenseManager();
+        if (typeof displaySavedSmsNumber === 'function') displaySavedSmsNumber(); if (typeof displaySalaryManager === 'function') displaySalaryManager(); if (typeof displayFixedExpenseManager === 'function') displayFixedExpenseManager();
         const limitInput = document.getElementById('subsidy-limit'); const limitBtn = document.getElementById('subsidy-save-btn'); if(limitInput) limitInput.parentElement.style.display = 'none'; if(limitBtn) limitBtn.style.display = 'none';
-    } catch(e) { console.error("설정 화면 데이터 갱신 중 오류:", e); }
+    } catch(e) { console.error(e); }
 };
-
 window.closeSettings = function() {
-    const mainPage = document.getElementById('main-page'); const settingsPage = document.getElementById('settings-page');
-    const btnGo = document.getElementById('go-to-settings-btn'); const btnBack = document.getElementById('back-to-main-btn');
-    const editIndicator = document.getElementById('edit-mode-indicator'); const editId = document.getElementById('edit-id');
-    if (mainPage) mainPage.classList.remove("hidden"); if (settingsPage) settingsPage.classList.add("hidden");
-    if (btnGo) btnGo.classList.remove("hidden"); if (btnBack) btnBack.classList.add("hidden");
-    if (editId && editId.value && editIndicator) editIndicator.classList.remove('hidden');
-    try { if (typeof updateAllDisplays === 'function') updateAllDisplays(); } catch(e) { console.error("메인 화면 갱신 오류:", e); }
+    const mainPage = document.getElementById('main-page'); const settingsPage = document.getElementById('settings-page'); const btnGo = document.getElementById('go-to-settings-btn'); const btnBack = document.getElementById('back-to-main-btn'); const editIndicator = document.getElementById('edit-mode-indicator'); const editId = document.getElementById('edit-id');
+    if (mainPage) mainPage.classList.remove("hidden"); if (settingsPage) settingsPage.classList.add("hidden"); if (btnGo) btnGo.classList.remove("hidden"); if (btnBack) btnBack.classList.add("hidden"); if (editId && editId.value && editIndicator) editIndicator.classList.remove('hidden'); try { if (typeof updateAllDisplays === 'function') updateAllDisplays(); } catch(e) { }
 };
 
+// [5] 관리자 기능 (지역/SMS/급여/고정지출)
 window.editCenter = function(oldName) {
-    const loc = MEM_LOCATIONS[oldName] || {};
-    const newName = prompt("지역 이름 수정:", oldName); if (newName === null || newName.trim() === "") return;
-    const newAddr = prompt("주소 수정:", loc.address || ""); if (newAddr === null) return; 
-    const newMemo = prompt("메모 수정:", loc.memo || ""); if (newMemo === null) return;
+    const loc = MEM_LOCATIONS[oldName] || {}; const newName = prompt("지역 이름 수정:", oldName); if (newName === null || newName.trim() === "") return; const newAddr = prompt("주소 수정:", loc.address || ""); if (newAddr === null) return; const newMemo = prompt("메모 수정:", loc.memo || ""); if (newMemo === null) return;
     if (newName !== oldName) { const idx = MEM_CENTERS.indexOf(oldName); if (idx > -1) MEM_CENTERS[idx] = newName; MEM_CENTERS.sort(); delete MEM_LOCATIONS[oldName]; }
     MEM_LOCATIONS[newName] = { address: newAddr, memo: newMemo }; saveData(); displayCenterList(document.getElementById('center-search-input')?.value || ''); showToast("수정되었습니다.");
 };
-window.deleteCenter = function(name) {
-    if (!confirm(`'${name}' 지역을 정말 삭제하시겠습니까?`)) return;
-    const idx = MEM_CENTERS.indexOf(name); if (idx > -1) MEM_CENTERS.splice(idx, 1);
-    delete MEM_LOCATIONS[name]; saveData(); displayCenterList(document.getElementById('center-search-input')?.value || ''); showToast("삭제되었습니다.");
-};
+window.deleteCenter = function(name) { if (!confirm(`'${name}' 지역을 삭제하시겠습니까?`)) return; const idx = MEM_CENTERS.indexOf(name); if (idx > -1) MEM_CENTERS.splice(idx, 1); delete MEM_LOCATIONS[name]; saveData(); displayCenterList(document.getElementById('center-search-input')?.value || ''); showToast("삭제되었습니다."); };
 window.addNewCenterFromInput = function() {
-    let input = document.getElementById('add-center-input') || document.getElementById('new-center-name');
-    if (!input) { const settingsPage = document.getElementById('settings-page'); if (settingsPage) { const inputs = settingsPage.querySelectorAll('input[type="text"]'); for(let i=0; i<inputs.length; i++) { if(inputs[i].placeholder && (inputs[i].placeholder.includes('지역') || inputs[i].placeholder.includes('이름'))) { input = inputs[i]; break; } } } }
-    if (!input) return alert("입력창을 찾을 수 없습니다.");
-    const name = input.value.trim(); if (!name) return alert("지역 이름을 입력해주세요.");
-    if (MEM_CENTERS.includes(name)) { alert("이미 등록된 지역입니다."); input.value = ""; return; }
+    let input = document.getElementById('add-center-input') || document.getElementById('new-center-name'); if (!input) { const settingsPage = document.getElementById('settings-page'); if (settingsPage) { const inputs = settingsPage.querySelectorAll('input[type="text"]'); for(let i=0; i<inputs.length; i++) { if(inputs[i].placeholder && (inputs[i].placeholder.includes('지역') || inputs[i].placeholder.includes('이름'))) { input = inputs[i]; break; } } } }
+    if (!input) return alert("입력창을 찾을 수 없습니다."); const name = input.value.trim(); if (!name) return alert("지역 이름을 입력해주세요."); if (MEM_CENTERS.includes(name)) { alert("이미 등록된 지역입니다."); input.value = ""; return; }
     updateLocationData(name, "", ""); input.value = ""; displayCenterList(document.getElementById('center-search-input')?.value || ''); showToast(`'${name}' 지역이 추가되었습니다.`);
 };
+function displayCenterList(filter='') { const container = document.getElementById('center-list-container'); if(!container) return; container.innerHTML = ""; const list = MEM_CENTERS.filter(c => c.toLowerCase().includes(filter.toLowerCase())); list.forEach(c => { const div = document.createElement('div'); div.className='center-item'; const locInfo = MEM_LOCATIONS[c] || {}; const infoText = locInfo.address ? `${c} (${locInfo.address})` : c; div.innerHTML=`<div class="info"><span class="center-name">${infoText}</span><div class="action-buttons"><button type="button" class="center-action-btn btn-edit" style="background:#17a2b8;" onclick="window.editCenter('${c}')">수정</button><button type="button" class="center-action-btn btn-delete" style="background:#dc3545;" onclick="window.deleteCenter('${c}')">삭제</button></div></div>`; container.appendChild(div); }); }
+function populateCenterDatalist() { const dl = document.getElementById('center-list'); if(dl) dl.innerHTML = MEM_CENTERS.map(c => `<option value="${c}"></option>`).join(''); }
+function populateExpenseDatalist() { const dl = document.getElementById('expense-list'); if(dl) dl.innerHTML = MEM_EXPENSE_ITEMS.map(item => `<option value="${item}"></option>`).join(''); }
 
-function displaySavedSmsNumber() {
-    const savedNum = localStorage.getItem('target_sms_number'); const displayDiv = document.getElementById('saved-sms-number-display');
-    if (!displayDiv) { const parent = document.getElementById('data-management-body'); if(parent) { const newDiv = document.createElement('div'); newDiv.id = 'saved-sms-number-display'; newDiv.style.marginTop = '5px'; newDiv.style.marginBottom = '10px'; newDiv.style.fontSize = '0.9em'; newDiv.style.color = '#007bff'; if(parent.children.length > 0) parent.insertBefore(newDiv, parent.children[1]); else parent.appendChild(newDiv); renderSmsNumberContent(newDiv, savedNum); } } else { renderSmsNumberContent(displayDiv, savedNum); }
-}
-function renderSmsNumberContent(element, num) {
-    if (num) element.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center; background:#f1f8ff; padding:8px; border-radius:4px;"><span>저장된 번호: <strong>${num}</strong></span><button type="button" onclick="window.deleteSavedSmsNumber()" style="background:#dc3545; color:white; border:none; border-radius:3px; padding:4px 10px; font-size:0.8em; cursor:pointer;">삭제</button></div>`; else element.innerHTML = "<div style='padding:5px; color:#666;'>저장된 발신번호가 없습니다.</div>";
-}
-window.deleteSavedSmsNumber = function() {
-    if(confirm('저장된 발신번호를 삭제하시겠습니까?')) { localStorage.removeItem('target_sms_number'); displaySavedSmsNumber(); const inputEl = document.getElementById('sms-target-number'); if(inputEl) inputEl.value = ''; showToast("삭제되었습니다."); }
-};
+function displaySavedSmsNumber() { const savedNum = localStorage.getItem('target_sms_number'); const displayDiv = document.getElementById('saved-sms-number-display'); if (!displayDiv) { const parent = document.getElementById('data-management-body'); if(parent) { const newDiv = document.createElement('div'); newDiv.id = 'saved-sms-number-display'; newDiv.style.marginTop = '5px'; newDiv.style.marginBottom = '10px'; newDiv.style.fontSize = '0.9em'; newDiv.style.color = '#007bff'; if(parent.children.length > 0) parent.insertBefore(newDiv, parent.children[1]); else parent.appendChild(newDiv); renderSmsNumberContent(newDiv, savedNum); } } else { renderSmsNumberContent(displayDiv, savedNum); } }
+function renderSmsNumberContent(element, num) { if (num) element.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center; background:#f1f8ff; padding:8px; border-radius:4px;"><span>저장된 번호: <strong>${num}</strong></span><button type="button" onclick="window.deleteSavedSmsNumber()" style="background:#dc3545; color:white; border:none; border-radius:3px; padding:4px 10px; font-size:0.8em; cursor:pointer;">삭제</button></div>`; else element.innerHTML = "<div style='padding:5px; color:#666;'>저장된 발신번호가 없습니다.</div>"; }
+window.deleteSavedSmsNumber = function() { if(confirm('저장된 발신번호를 삭제하시겠습니까?')) { localStorage.removeItem('target_sms_number'); displaySavedSmsNumber(); const inputEl = document.getElementById('sms-target-number'); if(inputEl) inputEl.value = ''; showToast("삭제되었습니다."); } };
 
 function displaySalaryManager() {
     if (typeof MEM_SALARIES === 'undefined') MEM_SALARIES = {};
     let container = document.getElementById('salary-management-container');
     if (!container) { const parent = document.getElementById('data-management-body'); if (!parent) return; container = document.createElement('div'); container.id = 'salary-management-container'; container.style.marginTop = '20px'; container.style.borderTop = '1px solid #eee'; container.style.paddingTop = '15px'; parent.appendChild(container); }
-    const currentYear = new Date().getFullYear(); const currentMonth = String(new Date().getMonth() + 1).padStart(2, '0');
-    let yearOpts = ''; for(let i=0; i<3; i++) yearOpts += `<option value="${currentYear-i}">${currentYear-i}년</option>`;
-    let monthOpts = ''; for(let i=1; i<=12; i++) monthOpts += `<option value="${String(i).padStart(2,'0')}">${i}월</option>`;
+    const currentYear = new Date().getFullYear(); const currentMonth = String(new Date().getMonth() + 1).padStart(2, '0'); let yearOpts = ''; for(let i=0; i<3; i++) yearOpts += `<option value="${currentYear-i}">${currentYear-i}년</option>`; let monthOpts = ''; for(let i=1; i<=12; i++) monthOpts += `<option value="${String(i).padStart(2,'0')}">${i}월</option>`;
     let listHtml = ''; Object.keys(MEM_SALARIES).sort().reverse().forEach(key => { const amount = MEM_SALARIES[key]; listHtml += `<div style="display:flex; justify-content:space-between; align-items:center; background:#f9f9f9; padding:12px; border-radius:6px; margin-bottom:8px; border:1px solid #eee;"><div style="font-size:1em; color:#333;"><strong style="margin-right:5px;">${key}</strong><div style="color:#007bff; font-weight:bold; font-size:1.1em; margin-top:2px;">${formatToManwon(amount)} 만원</div></div><div style="display:flex; gap:8px;"><button type="button" onclick="window.editSalary('${key}', ${amount})" style="background:#17a2b8; color:white; border:none; border-radius:4px; padding:8px 12px; font-weight:bold; font-size:0.9em;">수정</button><button type="button" onclick="window.deleteSalary('${key}')" style="background:#dc3545; color:white; border:none; border-radius:4px; padding:8px 12px; font-weight:bold; font-size:0.9em;">삭제</button></div></div>`; });
     if(!listHtml) listHtml = `<div style="color:#999; text-align:center; padding:20px; background:#f8f8f8; border-radius:5px;">내역이 없습니다.<br>급여를 등록해주세요.</div>`;
     container.innerHTML = `<h4 style="margin-bottom:12px; font-weight:bold; color:#333; font-size:1.1em;">💰 급여 설정 (월 고정수입)</h4><div style="display:flex; gap:5px; margin-bottom:8px;"><select id="salary-set-year" style="flex:1; padding:12px; border:1px solid #ccc; border-radius:5px; font-size:1em; background:#fff;">${yearOpts}</select><select id="salary-set-month" style="flex:1; padding:12px; border:1px solid #ccc; border-radius:5px; font-size:1em; background:#fff;">${monthOpts}</select></div><div style="display:flex; gap:5px; margin-bottom:20px;"><input type="tel" id="salary-set-amount" inputmode="numeric" placeholder="금액 입력 (원)" oninput="this.value = this.value.replace(/[^0-9]/g, '');" style="flex:2; padding:12px; border:1px solid #007bff; border-radius:5px; font-size:1.1em; font-weight:bold;"><button type="button" onclick="window.saveSalary()" style="flex:1; padding:12px; background:#007bff; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold; font-size:1em;">저장</button></div><div style="max-height:300px; overflow-y:auto; border-top:2px solid #f1f1f1; padding-top:15px;">${listHtml}</div>`;
     document.getElementById('salary-set-month').value = currentMonth;
 }
-window.saveSalary = function() {
-    const y = document.getElementById('salary-set-year').value; const m = document.getElementById('salary-set-month').value; const amountInput = document.getElementById('salary-set-amount'); let rawVal = amountInput.value.replace(/[^0-9]/g, ''); const amount = parseInt(rawVal, 10);
-    if (!rawVal || isNaN(amount) || amount <= 0) { alert('급여 금액을 입력해주세요.'); amountInput.focus(); return; }
-    if (typeof MEM_SALARIES === 'undefined') MEM_SALARIES = {}; const key = `${y}-${m}`; MEM_SALARIES[key] = amount;
-    saveData(); displaySalaryManager(); if (typeof updateAllDisplays === 'function') updateAllDisplays(); showToast(`${y}년 ${m}월 급여가 저장되었습니다.`); amountInput.value = ''; amountInput.blur();
-};
-window.editSalary = function(key, amount) {
-    const [year, month] = key.split('-'); const yEl = document.getElementById('salary-set-year'); const mEl = document.getElementById('salary-set-month'); const aEl = document.getElementById('salary-set-amount');
-    if(yEl && mEl && aEl) { yEl.value = year; mEl.value = month; aEl.value = amount; aEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => { aEl.focus(); }, 300); showToast(`${year}년 ${month}월 수정 모드`); }
-};
-window.deleteSalary = function(key) {
-    if(!confirm(`${key} 급여 내역을 삭제하시겠습니까?`)) return; if (typeof MEM_SALARIES !== 'undefined') { delete MEM_SALARIES[key]; saveData(); displaySalaryManager(); if (typeof updateAllDisplays === 'function') updateAllDisplays(); showToast('삭제되었습니다.'); }
-};
-// ==========================================
-// [블록 3] 고정 지출 관리자 (Fixed Expense)
-// ==========================================
+window.saveSalary = function() { const y = document.getElementById('salary-set-year').value; const m = document.getElementById('salary-set-month').value; const amountInput = document.getElementById('salary-set-amount'); let rawVal = amountInput.value.replace(/[^0-9]/g, ''); const amount = parseInt(rawVal, 10); if (!rawVal || isNaN(amount) || amount <= 0) { alert('급여 금액을 입력해주세요.'); amountInput.focus(); return; } if (typeof MEM_SALARIES === 'undefined') MEM_SALARIES = {}; const key = `${y}-${m}`; MEM_SALARIES[key] = amount; saveData(); displaySalaryManager(); if (typeof updateAllDisplays === 'function') updateAllDisplays(); showToast(`${y}년 ${m}월 급여가 저장되었습니다.`); amountInput.value = ''; amountInput.blur(); };
+window.editSalary = function(key, amount) { const [year, month] = key.split('-'); const yEl = document.getElementById('salary-set-year'); const mEl = document.getElementById('salary-set-month'); const aEl = document.getElementById('salary-set-amount'); if(yEl && mEl && aEl) { yEl.value = year; mEl.value = month; aEl.value = amount; aEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => { aEl.focus(); }, 300); showToast(`${year}년 ${month}월 수정 모드`); } };
+window.deleteSalary = function(key) { if(!confirm(`${key} 급여 내역을 삭제하시겠습니까?`)) return; if (typeof MEM_SALARIES !== 'undefined') { delete MEM_SALARIES[key]; saveData(); displaySalaryManager(); if (typeof updateAllDisplays === 'function') updateAllDisplays(); showToast('삭제되었습니다.'); } };
 
 function displayFixedExpenseManager() {
     let container = document.getElementById('expense-management-container');
     if (!container) { const parent = document.getElementById('data-management-body'); if (!parent) return; container = document.createElement('div'); container.id = 'expense-management-container'; container.style.marginTop = '20px'; container.style.borderTop = '1px solid #eee'; container.style.paddingTop = '15px'; const salaryContainer = document.getElementById('salary-management-container'); if (salaryContainer) salaryContainer.parentNode.insertBefore(container, salaryContainer.nextSibling); else parent.appendChild(container); }
-    let monthOpts = `<option value="0">매월 (반복)</option>`; for(let i=1; i<=12; i++) monthOpts += `<option value="${i}">${i}월</option>`;
-    let dayOpts = ''; for(let i=1; i<=31; i++) dayOpts += `<option value="${i}">${i}일</option>`;
+    let monthOpts = `<option value="0">매월 (반복)</option>`; for(let i=1; i<=12; i++) monthOpts += `<option value="${i}">${i}월</option>`; let dayOpts = ''; for(let i=1; i<=31; i++) dayOpts += `<option value="${i}">${i}일</option>`;
     let listHtml = `<div style="max-height: 250px; overflow-y: auto; border: 1px solid #eee; border-radius: 4px; background: #fafafa;">`;
     if (MEM_FIXED_EXPENSES.length === 0) { listHtml += `<div style="padding:15px; text-align:center; color:#999;">등록된 고정 지출이 없습니다.<br>(예: 매월 25일 보험료 10만원)</div>`; } else {
         MEM_FIXED_EXPENSES.sort((a,b) => { const mA = a.month || 0; const mB = b.month || 0; if(mA !== mB) return mA - mB; return a.day - b.day; });
@@ -227,73 +275,10 @@ window.editFixedExpense = function(index) {
     const btn = document.getElementById('fe-save-btn'); btn.textContent = "수정"; btn.style.background = "#17a2b8"; showToast("수정 모드: 내용을 변경하고 저장하세요.");
 };
 window.deleteFixedExpense = function(index) {
-    if(!confirm("이 고정 지출 항목을 삭제하시겠습니까?")) return;
-    MEM_FIXED_EXPENSES.splice(index, 1); saveData(); displayFixedExpenseManager(); if(typeof updateAllDisplays === 'function') updateAllDisplays(); showToast("삭제되었습니다.");
+    if(!confirm("이 고정 지출 항목을 삭제하시겠습니까?")) return; MEM_FIXED_EXPENSES.splice(index, 1); saveData(); displayFixedExpenseManager(); if(typeof updateAllDisplays === 'function') updateAllDisplays(); showToast("삭제되었습니다.");
 };
-// ==========================================
-// [블록 4] 유틸리티 및 폼 제어
-// ==========================================
 
-const getTodayString = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
-const getCurrentTimeString = () => { const d = new Date(); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; };
-const formatToManwon = (val) => isNaN(val) ? '0' : Math.round(val / 10000).toLocaleString('ko-KR');
-function showToast(msg) { const toast = document.getElementById('toast-notification'); if(toast){ toast.textContent = msg; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 1500); } }
-function copyTextToClipboard(text, msg) { if (!text) { showToast('복사할 주소가 없습니다.'); return; } const ta = document.createElement("textarea"); ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); showToast(msg || '주소가 복사되었습니다.'); } catch (e) { if (navigator.clipboard) { navigator.clipboard.writeText(text).then(() => showToast(msg || '주소가 복사되었습니다.')).catch(err => console.log('복사 실패:', err)); } } document.body.removeChild(ta); }
-function getStatisticalDate(dateStr, timeStr) { if (!dateStr || !timeStr) return dateStr; const hour = parseInt(timeStr.split(':')[0], 10); if (hour >= 4) return dateStr; const d = new Date(dateStr); d.setDate(d.getDate() - 1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
-function safeInt(value) { if (!value) return 0; const num = parseInt(String(value).replace(/,/g, ''), 10); return isNaN(num) ? 0 : num; }
-function safeFloat(value) { if (!value) return 0; const num = parseFloat(String(value).replace(/,/g, '')); return isNaN(num) ? 0 : num; }
-function moveDate(offset, updateCallback) { const picker = document.getElementById('today-date-picker'); if (!picker || !picker.value) return; const d = new Date(picker.value); d.setDate(d.getDate() + offset); picker.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; if(updateCallback) updateCallback(); }
-function changeDateSelect(yId, mId, delta, updateCallback) { const yEl = document.getElementById(yId); const mEl = document.getElementById(mId); if(!yEl || !mEl) return; const d = new Date(parseInt(yEl.value), parseInt(mEl.value) - 1 + delta, 1); yEl.value = d.getFullYear(); mEl.value = String(d.getMonth() + 1).padStart(2, '0'); if(updateCallback) updateCallback(); }
-
-function toggleUI() {
-    const typeSelect = document.getElementById('type'); const editModeIndicator = document.getElementById('edit-mode-indicator'); const smsSection = document.getElementById('sms-parser-section'); if(!typeSelect) return;
-    const type = typeSelect.value; const isEditMode = editModeIndicator && !editModeIndicator.classList.contains('hidden');
-    const sections = ['fuel-details', 'supply-details', 'expense-details', 'trip-actions', 'general-actions', 'edit-actions']; sections.forEach(id => { const el = document.getElementById(id); if(el) el.classList.add('hidden'); });
-    const transportDetails = document.getElementById('transport-details'); const costInfo = document.getElementById('cost-info-fieldset'); const costWrapper = document.getElementById('cost-wrapper'); const incomeWrapper = document.getElementById('income-wrapper');
-    if (type === '운행종료') { if(transportDetails) transportDetails.classList.add('hidden'); if(costInfo) costInfo.classList.add('hidden'); controlSectionByText('기록 일시', false); controlSectionByText('기록 종류', false); return; }
-    if (isEditMode) { if(smsSection) smsSection.classList.add('hidden'); if(document.getElementById('edit-actions')) document.getElementById('edit-actions').classList.remove('hidden'); } else { if (['화물운송', '대기'].includes(type)) document.getElementById('trip-actions')?.classList.remove('hidden'); else document.getElementById('general-actions')?.classList.remove('hidden'); }
-    if (type === '화물운송' || type === '대기') { costWrapper?.classList.add('hidden'); incomeWrapper?.classList.remove('hidden'); } else { if(transportDetails) transportDetails.classList.add('hidden'); incomeWrapper?.classList.add('hidden'); costWrapper?.classList.remove('hidden'); if (type === '주유소') document.getElementById('fuel-details')?.classList.remove('hidden'); else if (type === '지출') { const expSection = document.getElementById('expense-details'); if(expSection) { expSection.classList.remove('hidden'); if(!document.getElementById('expense-memo')) { const div = document.createElement('div'); div.style.marginTop = '10px'; div.innerHTML = `<label style="display:block; color:#666; font-size:0.9em; margin-bottom:4px;">메모 (선택)</label><input type="text" id="expense-memo" placeholder="비고/상세내용" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px;">`; expSection.appendChild(div); } } } else if (type === '소모품') document.getElementById('supply-details')?.classList.remove('hidden'); }
-}
-
-function displayCenterList(filter='') {
-    const container = document.getElementById('center-list-container'); if(!container) return; container.innerHTML = ""; const list = MEM_CENTERS.filter(c => c.toLowerCase().includes(filter.toLowerCase()));
-    list.forEach(c => { const div = document.createElement('div'); div.className='center-item'; const locInfo = MEM_LOCATIONS[c] || {}; const infoText = locInfo.address ? `${c} (${locInfo.address})` : c; div.innerHTML=`<div class="info"><span class="center-name">${infoText}</span><div class="action-buttons"><button type="button" class="center-action-btn btn-edit" style="background:#17a2b8;" onclick="window.editCenter('${c}')">수정</button><button type="button" class="center-action-btn btn-delete" style="background:#dc3545;" onclick="window.deleteCenter('${c}')">삭제</button></div></div>`; container.appendChild(div); });
-}
-function populateCenterDatalist() { const dl = document.getElementById('center-list'); if(dl) dl.innerHTML = MEM_CENTERS.map(c => `<option value="${c}"></option>`).join(''); }
-function populateExpenseDatalist() { const dl = document.getElementById('expense-list'); if(dl) dl.innerHTML = MEM_EXPENSE_ITEMS.map(item => `<option value="${item}"></option>`).join(''); }
-function updateAddressDisplay() {
-    const fromVal = document.getElementById('from-center')?.value.trim(); const toVal = document.getElementById('to-center')?.value.trim(); const displayEl = document.getElementById('address-display'); if(!displayEl) return;
-    let html = ''; const buildInfo = (label, val, color) => { if (!val || !MEM_LOCATIONS[val]) return ''; const loc = MEM_LOCATIONS[val]; let h = `<div style="margin-bottom:5px; padding-bottom:5px; border-bottom:1px dashed #ccc;"><span style="font-weight:bold; color:${color};">[${label}] ${val}</span>`; if (loc.address) h += `<div class="address-clickable" data-address="${loc.address}" style="margin-top:2px;">📍 ${loc.address} <span style="font-size:0.8em; color:#999;">(클릭하여 복사)</span></div>`; if (loc.memo) h += `<div style="margin-top:2px; font-size:0.9em; color:#555;">📝 ${loc.memo}</div>`; h += `</div>`; return h; };
-    html += buildInfo('상차', fromVal, '#007bff'); html += buildInfo('하차', toVal, '#dc3545'); displayEl.innerHTML = html; if (html !== '') displayEl.style.display = 'block'; else displayEl.style.display = 'none';
-}
-function getFormDataWithoutTime() {
-    const typeVal = document.getElementById('type').value; let memoVal = ''; if(typeVal === '지출') { const memoInput = document.getElementById('expense-memo'); if(memoInput) memoVal = memoInput.value.trim(); }
-    return { type: typeVal, from: document.getElementById('from-center').value.trim(), to: document.getElementById('to-center').value.trim(), distance: parseFloat(document.getElementById('manual-distance').value) || 0, cost: Math.round((parseFloat(document.getElementById('cost').value) || 0) * 10000), income: Math.round((parseFloat(document.getElementById('income').value) || 0) * 10000), expenseItem: document.getElementById('expense-item')?.value || '', supplyItem: document.getElementById('supply-item')?.value || '', supplyMileage: document.getElementById('supply-mileage')?.value || '', liters: document.getElementById('fuel-liters')?.value || 0, unitPrice: document.getElementById('fuel-unit-price')?.value || 0, brand: document.getElementById('fuel-brand')?.value || '', memo: memoVal };
-}
-function resetForm() {
-    document.getElementById('record-form')?.reset(); document.getElementById('edit-id').value = ''; document.getElementById('edit-mode-indicator')?.classList.add('hidden'); document.getElementById('date').value = getTodayString(); document.getElementById('time').value = getCurrentTimeString(); document.getElementById('date').disabled = false; document.getElementById('time').disabled = false;
-    const displayEl = document.getElementById('address-display'); if(displayEl) { displayEl.innerHTML = ''; displayEl.style.display = 'none'; } const dtField = document.getElementById('datetime-info-fieldset'); if(dtField) dtField.style.display = 'none'; const typeLegend = document.getElementById('legend-type'); if(typeLegend) { const f = typeLegend.closest('fieldset'); if(f) f.style.display = 'none'; }
-    ['transport-details', 'cost-info-fieldset'].forEach(id => { const el = document.getElementById(id); if(el) { el.classList.add('hidden'); el.style.display = 'none'; } }); ['toggle-basic-info-btn', 'toggle-location-section-btn', 'toggle-cost-section-btn'].forEach(id => { const btn = document.getElementById(id); if(btn) btn.innerHTML = '펴기 ▼'; }); toggleUI();
-}
-function editRecord(id) {
-    const r = MEM_RECORDS.find(x => x.id === id); if(!r) return;
-    document.getElementById('date').value = r.date; document.getElementById('time').value = r.time; document.getElementById('type').value = r.type;
-    if(document.getElementById('from-center')) document.getElementById('from-center').value = r.from || ''; if(document.getElementById('to-center')) document.getElementById('to-center').value = r.to || ''; if(document.getElementById('manual-distance')) document.getElementById('manual-distance').value = r.distance || ''; if(document.getElementById('income')) document.getElementById('income').value = r.income ? (r.income/10000) : ''; if(document.getElementById('cost')) document.getElementById('cost').value = r.cost ? (r.cost/10000) : ''; if(document.getElementById('expense-item')) document.getElementById('expense-item').value = r.expenseItem || '';
-    toggleUI(); if(r.type === '지출') { const memoInput = document.getElementById('expense-memo'); if(memoInput) memoInput.value = r.memo || ''; }
-    document.getElementById('edit-id').value = id; document.getElementById('edit-mode-indicator')?.classList.remove('hidden'); document.getElementById('date').disabled = false; document.getElementById('time').disabled = false;
-    const dtField = document.getElementById('datetime-info-fieldset'); if(dtField) { dtField.style.display = 'block'; dtField.classList.remove('hidden'); } const dtBody = document.getElementById('body-datetime'); if(dtBody) dtBody.style.display = 'block'; const typeLegend = document.getElementById('legend-type'); if(typeLegend) { const f = typeLegend.closest('fieldset'); if(f) { f.style.display = 'block'; f.classList.remove('hidden'); } } const typeBody = document.getElementById('body-type'); if(typeBody) typeBody.style.display = 'block';
-    ['transport-details', 'cost-info-fieldset'].forEach(sid => { const s = document.getElementById(sid); if(s) { s.classList.remove('hidden'); s.style.display = 'block'; } });
-    const fromIn = document.getElementById('from-center'); const toIn = document.getElementById('to-center'); if(fromIn) fromIn.dispatchEvent(new Event('input')); if(toIn) toIn.dispatchEvent(new Event('input')); window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-function renderFrequentLocationButtons() {
-    const fromContainer = document.getElementById('top-from-centers'); const toContainer = document.getElementById('top-to-centers'); if (!fromContainer || !toContainer) return; const fromCounts = {}, toCounts = {}; MEM_RECORDS.forEach(r => { if (['화물운송','대기'].includes(r.type)) { if (r.from) fromCounts[r.from] = (fromCounts[r.from] || 0) + 1; if (r.to) toCounts[r.to] = (toCounts[r.to] || 0) + 1; } });
-    const buildButtons = (data, container, targetInputId) => { container.innerHTML = ''; const sorted = Object.entries(data).sort((a,b)=>b[1]-a[1]).slice(0,5); if (sorted.length === 0) container.style.display = 'none'; else container.style.display = 'grid'; sorted.forEach(([name]) => { const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'quick-loc-btn'; btn.textContent = name; btn.onclick = () => { const input = document.getElementById(targetInputId); if(input) { input.value = name; input.dispatchEvent(new Event('input')); } }; container.appendChild(btn); }); };
-    buildButtons(fromCounts, fromContainer, 'from-center'); buildButtons(toCounts, toContainer, 'to-center');
-}
-// ==========================================
-// [블록 5] SMS, OCR 및 통계
-// ==========================================
-
+// [6] SMS / OCR / 통계 / 인쇄 / 초기화
 function parseSmsText() {
     const inputEl = document.getElementById('sms-input'); const input = inputEl ? inputEl.value : ""; if (!input.trim()) { showToast("분석할 문자를 입력해주세요."); return; }
     const resultsDiv = document.getElementById('sms-parse-results'); if(!resultsDiv) return; resultsDiv.innerHTML = ""; resultsDiv.classList.remove('hidden'); resultsDiv.style.display = 'block';
@@ -375,7 +360,7 @@ function displayTodayRecords(date) {
         } else { otherList.push(r); }
     });
     
-    // 순서 정렬: 진행중 -> 기타 -> 완료 -> 등록(대기)
+    // 순서 정렬: 진행중(상단) -> 기타 -> 완료 -> 등록(하단)
     registeredList.sort((a, b) => b.id - a.id); ongoingList.sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
     completedList.sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time)); otherList.sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
 
@@ -421,9 +406,6 @@ function displayDailyRecords() {
         if(dailyTbody) dailyTbody.appendChild(tr);
     });
 }
-// ==========================================
-// [블록 6] 인쇄, 이벤트 및 초기화
-// ==========================================
 
 function displayWeeklyRecords() {
     const yearSelect = document.getElementById('weekly-year-select'), monthSelect = document.getElementById('weekly-month-select'); if(!yearSelect || !monthSelect) return;
